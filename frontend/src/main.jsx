@@ -6,7 +6,8 @@ import App from "./App";
 import "./index.css";
 
 // Trim — stray spaces/newlines in .env break Clerk.
-const publishableKey = (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "").trim();
+const rawKey = (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "").trim();
+const publishableKey = (rawKey && !rawKey.includes("_your_")) ? rawKey : "";
 
 function MissingClerkKeyScreen() {
   return (

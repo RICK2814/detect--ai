@@ -14,9 +14,9 @@ try { PDFParse = require("pdf-parse").PDFParse; } catch(e) {}
 let groqClient;
 function getGroqClient() {
   const key = (process.env.GROQ_API_KEY || "").trim();
-  if (!key) {
+  if (!key || key.includes("_your_")) {
     const err = new Error(
-      "GROQ_API_KEY is not set. Add it to backend/.env (get a key at https://console.groq.com)."
+      "GROQ_API_KEY is missing or contains a placeholder. Please update backend/.env with your actual key from https://console.groq.com."
     );
     err.status = 503;
     throw err;
@@ -140,7 +140,15 @@ async function fetchGoogleContent(googleInfo) {
       } else if (contentType.includes("text/html") || contentType.includes("text/csv")) {
         // HTML export — strip tags
         const $ = cheerio.load(res.data);
-        $("script,style,head").remove();
+
+        // Check for Google login page/consent screens
+        const pageTitle = $("title").text().toLowerCase();
+        if (pageTitle.includes("google") && (pageTitle.includes("sign in") || pageTitle.includes("login") || pageTitle.includes("consent"))) {
+          console.warn("[GOOGLE] Hit login/consent page instead of document");
+          continue;
+        }
+
+        $("script,style,head,nav,footer").remove();
         text = $("body").text().replace(/\s+/g, " ").trim();
       } else if (typeof res.data === "string") {
         text = res.data.replace(/\s+/g, " ").trim();
@@ -149,7 +157,15 @@ async function fetchGoogleContent(googleInfo) {
       const wordCount = text.split(/\s+/).filter(Boolean).length;
       console.log(`[GOOGLE] Got ${wordCount} words from ${url}`);
 
-      if (wordCount >= 20) return text;
+      // If we got very little text, it might be a redirect or error page
+      if (wordCount >= 20) {
+        // Double check it's not just a "Sign in" message
+        if (text.toLowerCase().includes("sign in") && text.length < 500) {
+           console.warn("[GOOGLE] Extracted text looks like a login page:", text.slice(0, 100));
+           continue;
+        }
+        return text;
+      }
     } catch (e) {
       console.warn(`[GOOGLE] Failed: ${e.response?.status || e.message}`);
       if (e.response?.status === 403) {
@@ -295,41 +311,60 @@ async function extractFromUrl(url) {
 // SYSTEM PROMPT
 // ════════════════════════════════════════════════════════════════════════════
 
-const SYSTEM_PROMPT = `You are an expert AI text detection system. Analyze the text and determine if it was written by a human or an AI (ChatGPT, Claude, Gemini, Llama, etc.).
+const SYSTEM_PROMPT = `You are an expert AI text detection system. Analyze the text and determine if it was written by a human or an AI.
 
-Respond ONLY with valid JSON — no markdown, no preamble:
+Respond ONLY with valid JSON. 
+CRITICAL: You MUST be extremely brief. The entire response should be less than 400 tokens.
+- "summary": Exactly 1-2 short sentences (max 30 words).
+- "signals" labels: Max 5 words each.
+- "ai_flags", "human_flags", "suspicious_phrases": Max 3 items each, 1-3 words per item.
+
+JSON Structure:
 {
   "verdict": "AI" | "Human" | "Mixed",
   "ai_probability": <integer 0-100>,
   "confidence": "Low" | "Medium" | "High" | "Very High",
-  "summary": "<2-3 sentence explanation>",
+  "summary": "...",
   "signals": {
-    "perplexity":         { "score": <0-100>, "label": "<note>" },
-    "burstiness":         { "score": <0-100>, "label": "<note>" },
-    "vocabulary":         { "score": <0-100>, "label": "<note>" },
-    "sentence_structure": { "score": <0-100>, "label": "<note>" }
+    "perplexity":         { "score": <0-100>, "label": "..." },
+    "burstiness":         { "score": <0-100>, "label": "..." },
+    "vocabulary":         { "score": <0-100>, "label": "..." },
+    "sentence_structure": { "score": <0-100>, "label": "..." }
   },
-  "ai_flags":           ["<AI authorship signal>"],
-  "human_flags":        ["<human authorship signal>"],
-  "suspicious_phrases": ["<AI-typical phrase found in text>"],
+  "ai_flags":           [],
+  "human_flags":        [],
+  "suspicious_phrases": [],
   "word_count":         <integer>,
   "sentence_count":     <integer>,
   "avg_sentence_length":<number>
 }`;
 
 async function callGroqDetection(text) {
+  if (!text || text.trim().length < 50) {
+    throw new Error("Text is too short for reliable AI detection.");
+  }
+
+  // Use a smaller slice to ensure the model doesn't spend too much energy on input
+  const truncatedText = text.slice(0, 8000);
+  console.log(`[GROQ] Analyzing text snippet (${truncatedText.length} chars)`);
+
   const completion = await getGroqClient().chat.completions.create({
     model: "llama-3.3-70b-versatile",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user",   content: `Analyze this text:\n\n${text.slice(0, 8000)}` },
+      { role: "user",   content: `Analyze this text and return ONLY the JSON results:\n\n${truncatedText}` },
     ],
-    temperature: 0.05,
+    temperature: 0.1,
     max_tokens: 1024,
     response_format: { type: "json_object" },
   });
   const raw = completion.choices[0]?.message?.content || "{}";
-  return JSON.parse(raw.replace(/```json|```/g, "").trim());
+  try {
+    return JSON.parse(raw.replace(/```json|```/g, "").trim());
+  } catch (e) {
+    console.error("[GROQ] JSON Parse Error. Raw output:", raw);
+    throw new Error("Failed to parse AI detection result. Please try again.");
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════

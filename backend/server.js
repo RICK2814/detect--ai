@@ -14,6 +14,11 @@ const historyRouter = require("./routes/history");
 const app  = express();
 const PORT = process.env.PORT || 4000;
 
+// Helper to check if a key is a placeholder
+const isPlaceholder = (k) => !k || k.includes("_your_");
+
+const clerkKeyMissing = isPlaceholder(process.env.CLERK_PUBLISHABLE_KEY) || isPlaceholder(process.env.CLERK_SECRET_KEY);
+
 // ─── Security & Middleware ────────────────────────────────────────────────────
 
 app.use(helmet());
@@ -25,7 +30,11 @@ app.use(cors({
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-app.use(clerkMiddleware());
+if (!clerkKeyMissing) {
+  app.use(clerkMiddleware());
+} else {
+  console.warn("⚠️ Clerk keys missing or placeholders — skipping clerkMiddleware");
+}
 
 // Rate limiting — 30 requests per minute per IP (after Clerk so user id can be used if needed later)
 const limiter = rateLimit({
@@ -51,8 +60,10 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-app.use("/api/detect", limiter, requireAuth(), detectRouter);
-app.use("/api/history", requireAuth(), historyRouter);
+const maybeAuth = clerkKeyMissing ? (req, res, next) => next() : requireAuth();
+
+app.use("/api/detect", limiter, maybeAuth, detectRouter);
+app.use("/api/history", maybeAuth, historyRouter);
 
 // 404
 app.use((req, res) => {
