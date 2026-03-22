@@ -73,9 +73,12 @@ Detection criteria:
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const https = require("https");
+
 async function extractFromUrl(url) {
   const res = await axios.get(url, {
     timeout: 15000,
+    httpsAgent: new https.Agent({ rejectUnauthorized: false }),
     headers: {
       "User-Agent": "Mozilla/5.0 (compatible; AIDetectorBot/1.0)",
       "Accept": "text/html,application/xhtml+xml",
