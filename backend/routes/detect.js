@@ -191,10 +191,14 @@ router.post("/url", async (req, res) => {
       return res.status(400).json({ error: "Valid URL is required" });
 
     const text = await extractFromUrl(url);
-    if (text.split(/\s+/).length < 20)
-      return res.status(400).json({ error: "Not enough readable text at that URL." });
+    const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+    if (wordCount < 5)
+      return res.status(400).json({ error: "Not enough readable text at that URL (min 5 words)." });
 
     const result = await callGroqDetection(text);
+    if (wordCount < 20) {
+      result.warning = "Text has fewer than 20 words; detection may be less accurate.";
+    }
     const id = uuidv4();
     await db.saveScan({ id, source_type:"url", source_ref:url,
       input_text:text.slice(0,500), word_count:result.word_count,
