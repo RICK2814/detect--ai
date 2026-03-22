@@ -11,7 +11,19 @@ const db = require("../db");
 let PDFParse;
 try { PDFParse = require("pdf-parse").PDFParse; } catch(e) {}
 
-const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+let groqClient;
+function getGroqClient() {
+  const key = (process.env.GROQ_API_KEY || "").trim();
+  if (!key) {
+    const err = new Error(
+      "GROQ_API_KEY is not set. Add it to backend/.env (get a key at https://console.groq.com)."
+    );
+    err.status = 503;
+    throw err;
+  }
+  if (!groqClient) groqClient = new Groq({ apiKey: key });
+  return groqClient;
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -306,7 +318,7 @@ Respond ONLY with valid JSON — no markdown, no preamble:
 }`;
 
 async function callGroqDetection(text) {
-  const completion = await client.chat.completions.create({
+  const completion = await getGroqClient().chat.completions.create({
     model: "llama-3.3-70b-versatile",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
@@ -366,7 +378,7 @@ router.post("/text", async (req, res) => {
     res.json({ id, ...result });
   } catch (err) {
     console.error("[text]", err.message);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -386,7 +398,7 @@ router.post("/url", async (req, res) => {
     res.json({ id, url, ...result });
   } catch (err) {
     console.error("[url]", err.message);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -402,7 +414,7 @@ router.post("/file", upload.single("file"), async (req, res) => {
     res.json({ id, filename: req.file.originalname, ...result });
   } catch (err) {
     console.error("[file]", err.message);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

@@ -7,6 +7,7 @@ const helmet      = require("helmet");
 const morgan      = require("morgan");
 const rateLimit   = require("express-rate-limit");
 
+const { clerkMiddleware, requireAuth } = require("@clerk/express");
 const detectRouter  = require("./routes/detect");
 const historyRouter = require("./routes/history");
 
@@ -24,7 +25,9 @@ app.use(cors({
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Rate limiting — 30 requests per minute per IP
+app.use(clerkMiddleware());
+
+// Rate limiting — 30 requests per minute per IP (after Clerk so user id can be used if needed later)
 const limiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
@@ -32,7 +35,6 @@ const limiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many requests. Please wait a moment." },
 });
-app.use("/api/detect", limiter);
 
 app.use("/api", (req, res, next) => {
   console.log(`[API REQUEST] ${req.method} ${req.path}`);
@@ -49,8 +51,8 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-app.use("/api/detect",  detectRouter);
-app.use("/api/history", historyRouter);
+app.use("/api/detect", limiter, requireAuth(), detectRouter);
+app.use("/api/history", requireAuth(), historyRouter);
 
 // 404
 app.use((req, res) => {

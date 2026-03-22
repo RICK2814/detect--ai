@@ -1,6 +1,7 @@
 // components/Navbar.jsx
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
+import { UserButton } from "@clerk/clerk-react";
 
 const NAV = [
   { to: "/",        label: "Detect",  icon: "🔍" },
@@ -53,12 +54,15 @@ export default function Navbar() {
         })}
       </nav>
 
-      <div style={{
-        fontSize: 10, color: "var(--muted)",
-        padding: "3px 8px", border: "1px solid var(--border)",
-        borderRadius: 4, letterSpacing: 1,
-      }}>
-        v1.0 · BETA
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{
+          fontSize: 10, color: "var(--muted)",
+          padding: "3px 8px", border: "1px solid var(--border)",
+          borderRadius: 4, letterSpacing: 1,
+        }}>
+          v1.0 · BETA
+        </span>
+        <UserButton afterSignOutUrl="/sign-in" appearance={{ elements: { avatarBox: { width: 32, height: 32 } } }} />
       </div>
     </header>
   );
