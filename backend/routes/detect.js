@@ -136,7 +136,11 @@ async function extractFromFile(buffer, mimetype, originalname) {
         throw new Error("Unable to determine how to invoke pdf-parse");
       }
       
-      const text = String(data.text || "").trim();
+      console.log(`[EXTRACT] PDFParser result type: ${typeof data}, keys: ${data ? Object.keys(data) : 'null'}`);
+      console.log(`[EXTRACT] PDFParser result: ${JSON.stringify(data).slice(0, 200)}`);
+      
+      // Try multiple property paths
+      let text = String(data?.text || data?.Text || data?.content || data?.Content || "").trim();
       console.log(`[EXTRACT] Extracted ${text.length} characters from PDF`);
 
       if (!text) {
