@@ -205,8 +205,9 @@ router.post("/url", async (req, res) => {
       ip_address:req.ip });
     res.json({ id, url, ...result });
   } catch (err) {
-    console.error("detect/url:", err.message);
-    res.status(500).json({ error: err.code === "ECONNABORTED" ? "URL request timed out" : err.message });
+    console.error("detect/url:", err);
+    const message = err?.response?.data?.error || err?.message || "Unknown URL detection error";
+    res.status(500).json({ error: message });
   }
 });
 
