@@ -7,7 +7,13 @@ const cheerio = require("cheerio");
 const multer  = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const db = require("../db");
-const pdf = require("pdf-parse");
+let pdf = require("pdf-parse");
+if (pdf && typeof pdf !== "function") {
+  pdf = pdf.default || pdf.parse || pdf;
+}
+if (!pdf || typeof pdf !== "function") {
+  throw new Error("Invalid pdf-parse import: expected a function");
+}
 
 const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
