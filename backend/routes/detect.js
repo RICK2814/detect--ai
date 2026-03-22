@@ -28,7 +28,6 @@ try {
 }
 
 const Tesseract = require("tesseract.js");
-const { getDocument } = require("pdfjs-dist/legacy/build/pdf");
 
 const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -116,62 +115,20 @@ async function extractFromUrl(url) {
   return article.replace(/\s+/g, " ").trim();
 }
 
-async function extractTextFromPdfViaOCR(buffer) {
-  try {
-    console.log("[OCR] Starting OCR extraction from PDF pages...");
-    const pdf_doc = await getDocument({ data: buffer }).promise;
-    const page_count = Math.min(pdf_doc.numPages, 5); // Process max 5 pages for OCR
-    let all_text = "";
-
-    for (let page_num = 1; page_num <= page_count; page_num++) {
-      const page = await pdf_doc.getPage(page_num);
-      const viewport = page.getViewport({ scale: 2.0 });
-      
-      // Use canvas to render page
-      const canvas = require("canvas").createCanvas(viewport.width, viewport.height);
-      const context = canvas.getContext("2d");
-      
-      await page.render({
-        canvasContext: context,
-        viewport: viewport,
-      }).promise;
-
-      const image_data = canvas.toDataURL("image/png");
-      console.log(`[OCR] Processing page ${page_num}/${page_count}...`);
-
-      const result = await Tesseract.recognize(image_data, "eng", {
-        logger: m => console.log(`[OCR] Tesseract: ${m.status} ${Math.round(m.progress * 100)}%`),
-      });
-
-      all_text += result.data.text + "\n";
-    }
-
-    const final_text = all_text.trim();
-    console.log(`[OCR] Extracted ${final_text.length} characters via OCR`);
-    return final_text || null;
-  } catch (err) {
-    console.error("[OCR] Error during OCR extraction:", err.message);
-    return null;
-  }
-}
-
 async function extractFromFile(buffer, mimetype, originalname) {
   if (mimetype === "application/pdf" || originalname.toLowerCase().endsWith(".pdf")) {
     try {
+      if (!PDFParser) {
+        throw new Error("PDF parser not available");
+      }
       console.log(`[EXTRACT] PDF Buffer size: ${buffer.length}, Type: ${typeof buffer}, isBuffer: ${Buffer.isBuffer(buffer)}`);
       console.log(`[EXTRACT] Magic bytes: ${buffer.slice(0, 4).toString()}`); 
-      const data = await pdf(buffer);
-      let text = String(data.text || "").trim();
+      const data = await PDFParser(buffer);
+      const text = String(data.text || "").trim();
       console.log(`[EXTRACT] Extracted ${text.length} characters from PDF`);
 
-      // Try OCR fallback if pdf-parse returned no text
       if (!text) {
-        console.log("[EXTRACT] PDF has no embedded text; attempting OCR fallback...");
-        text = await extractTextFromPdfViaOCR(buffer);
-      }
-
-      if (!text) {
-        const msg = "No readable text found in PDF (scanned image without OCR-readable text).";
+        const msg = "No readable text found in PDF. It may be a scanned image or protected document.";
         console.warn(`[EXTRACT] ${msg}`);
         throw new Error(msg);
       }
