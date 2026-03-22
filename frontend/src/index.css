@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #070a0e;
+  --surface:  #0c1017;
+  --surface2: #111820;
+  --border:   #1a2a3a;
+  --border2:  #1f3347;
+  --accent:   #00e5ff;
+  --accent2:  #ff3c6e;
+  --accent3:  #6dffb3;
+  --warn:     #ffb830;
+  --text:     #cde4ef;
+  --muted:    #3d5a72;
+  --head:     'Syne', sans-serif;
+  --mono:     'Space Mono', monospace;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+button { cursor: pointer; font-family: var(--mono); }
+input, textarea { font-family: var(--mono); }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+::selection { background: rgba(0, 229, 255, 0.2); }

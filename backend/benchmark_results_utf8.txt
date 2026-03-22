@@ -1,0 +1,9 @@
+﻿--- AI SAMPLES ---
+[AI] Result: Human (10%) - The text has an informal tone, uses conversational language, and includes a personal invitation for others to share their experiences, which are characteristic of human-written text. The mention of a specific subreddit and the use of colloquial expressions like 'leveling up' also suggest a human author.
+[AI] Result: Human (5%) - The text has a personal and emotional tone, includes a personal story, and uses informal language, which are all characteristic of human writing. The use of specific details, such as staying with a sister and filing a police report, also suggests a personal and authentic account.
+[AI] Result: Human (10%) - The text has an informal tone, uses conversational language, and includes a personal anecdote, which are all characteristic of human writing. The use of colloquial expressions and a casual storytelling style further support this verdict.
+
+--- HUMAN SAMPLES ---
+[HUMAN] Result: Human (5%) - The text contains informal language, slang, and a personal story with strong emotional context, indicating it was written by a human. The use of colloquial expressions like 'TL;DR' and 'boner in hand' further supports this verdict.
+[HUMAN] Result: Human (10%) - The text has an informal tone, uses conversational language, and includes personal observations and feelings, which are characteristic of human writing. The use of phrases like 'I think' and 'I did noticed' also suggests a human author.
+[HUMAN] Result: Human (5%) - The text contains informal language, personal storytelling, and emotional nuance, which are characteristic of human writing. The use of colloquial expressions and the relatable scenario also suggest a human author.
