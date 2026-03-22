@@ -101,8 +101,17 @@ async function extractFromFile(buffer, mimetype, originalname) {
       console.log(`[EXTRACT] PDF Buffer size: ${buffer.length}, Type: ${typeof buffer}, isBuffer: ${Buffer.isBuffer(buffer)}`);
       console.log(`[EXTRACT] Magic bytes: ${buffer.slice(0, 4).toString()}`); 
       const data = await pdf(buffer);
-      console.log(`[EXTRACT] Extracted ${data.text?.length || 0} characters from PDF`);
-      return data.text;
+      const text = String(data.text || "").trim();
+      console.log(`[EXTRACT] Extracted ${text.length} characters from PDF`);
+
+      if (!text) {
+        // pdf-parse may be unable to extract from image-only PDFs
+        const msg = "No readable text found in PDF; it may be scanned images (OCR required).";
+        console.warn(`[EXTRACT] ${msg}`);
+        throw new Error(msg);
+      }
+
+      return text;
     } catch (err) {
       console.error("PDF Extraction Error Trace:", err);
       throw new Error(`Failed to extract text from PDF: ${err.message}`);
