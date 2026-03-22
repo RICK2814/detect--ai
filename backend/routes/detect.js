@@ -123,7 +123,19 @@ async function extractFromFile(buffer, mimetype, originalname) {
       }
       console.log(`[EXTRACT] PDF Buffer size: ${buffer.length}, Type: ${typeof buffer}, isBuffer: ${Buffer.isBuffer(buffer)}`);
       console.log(`[EXTRACT] Magic bytes: ${buffer.slice(0, 4).toString()}`); 
-      const data = await PDFParser(buffer);
+      
+      let data;
+      // Handle both class constructor and function variants
+      if (PDFParser.prototype && PDFParser.prototype.constructor === PDFParser) {
+        // It's a class, use new
+        data = await new PDFParser(buffer);
+      } else if (typeof PDFParser === "function") {
+        // It's a function, call directly
+        data = await PDFParser(buffer);
+      } else {
+        throw new Error("Unable to determine how to invoke pdf-parse");
+      }
+      
       const text = String(data.text || "").trim();
       console.log(`[EXTRACT] Extracted ${text.length} characters from PDF`);
 
