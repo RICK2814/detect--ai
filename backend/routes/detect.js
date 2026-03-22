@@ -7,16 +7,28 @@ const cheerio = require("cheerio");
 const multer  = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const db = require("../db");
-let pdf = require("pdf-parse");
-if (pdf && typeof pdf !== "function") {
-  pdf = pdf.default || pdf.parse || pdf;
-}
-if (!pdf || typeof pdf !== "function") {
-  throw new Error("Invalid pdf-parse import: expected a function");
+
+// Import pdf parsing - handle both ESM and CJS
+let PDFParser;
+try {
+  const pdfParse = require("pdf-parse");
+  // Try multiple export patterns
+  PDFParser = pdfParse?.default || 
+              pdfParse?.pdf_parse || 
+              pdfParse?.PDFParse ||
+              (typeof pdfParse === 'function' ? pdfParse : null);
+  
+  // If still not found, try direct require
+  if (!PDFParser) {
+    PDFParser = require("pdf-parse/lib/pdf-parse.js");
+  }
+} catch (e) {
+  console.error("Failed to load pdf-parse:", e.message);
+  PDFParser = null;
 }
 
 const Tesseract = require("tesseract.js");
-const pdfjsLib = require("pdfjs-dist/legacy/build/pdf");
+const { getDocument } = require("pdfjs-dist/legacy/build/pdf");
 
 const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -107,7 +119,7 @@ async function extractFromUrl(url) {
 async function extractTextFromPdfViaOCR(buffer) {
   try {
     console.log("[OCR] Starting OCR extraction from PDF pages...");
-    const pdf_doc = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const pdf_doc = await getDocument({ data: buffer }).promise;
     const page_count = Math.min(pdf_doc.numPages, 5); // Process max 5 pages for OCR
     let all_text = "";
 
