@@ -1,1 +1,12 @@
-# PDF Text Extraction Fix - Progress Tracker&#10;&#10;## Status: Step 1 Complete&#10;&#10;**Step 1: Update backend/routes/detect.js** ✓&#10;- [x] Replaced pdf-parse with pdfjs-dist (10-page extraction)&#10;- [x] Added tesseract.js OCR fallback for low-text PDFs&#10;- [x] Improved logging and detailed errors&#10;&#10;**Step 2: Test & Verify**&#10;- [ ] Run backend dev server&#10;- [ ] Test PDF upload via frontend&#10;&#10;**Step 3: Complete**&#10;- [ ] Confirm fix, attempt_completion&#10;
+# AI Detector - Final Setup (localhost:5173 working!)
+
+## ✅ Fixed
+- [x] Backend port 4000 running (`/api/health` OK)
+- [x] Frontend Vite 5173 running (HMR live)
+- [x] Killed conflicting node processes
+- [x] npm run dev concurrent
+
+## 🚀 Start (2 mins)
+1. **Get Clerk key** (blocks UI):
+   ```
+   https://dashboard.clerk.com → API Keys
