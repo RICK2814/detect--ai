@@ -344,26 +344,53 @@ async function callGroqDetection(text) {
     throw new Error("Text is too short for reliable AI detection.");
   }
 
-  // Use a smaller slice to ensure the model doesn't spend too much energy on input
-  const truncatedText = text.slice(0, 8000);
+  // Limit input to 4000 chars so the model has ample room to emit complete JSON.
+  // Sending 8000 chars left too little headroom and caused json_validate_failed
+  // ("max completion tokens reached before generating a valid document").
+  const truncatedText = text.slice(0, 4000);
   console.log(`[GROQ] Analyzing text snippet (${truncatedText.length} chars)`);
 
-  const completion = await getGroqClient().chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user",   content: `Analyze this text and return ONLY the JSON results:\n\n${truncatedText}` },
-    ],
-    temperature: 0.1,
-    max_tokens: 1024,
-    response_format: { type: "json_object" },
-  });
-  const raw = completion.choices[0]?.message?.content || "{}";
+  const messages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user",   content: `Analyze this text and return ONLY the JSON results:\n\n${truncatedText}` },
+  ];
+
+  // Primary attempt: strict JSON mode with generous token budget
   try {
+    const completion = await getGroqClient().chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages,
+      temperature: 0.1,
+      max_tokens: 2048,
+      response_format: { type: "json_object" },
+    });
+    const raw = completion.choices[0]?.message?.content || "{}";
     return JSON.parse(raw.replace(/```json|```/g, "").trim());
   } catch (e) {
-    console.error("[GROQ] JSON Parse Error. Raw output:", raw);
-    throw new Error("Failed to parse AI detection result. Please try again.");
+    // Groq throws json_validate_failed when token limit is hit mid-JSON.
+    // Retry without response_format and parse manually.
+    const isJsonModeError =
+      e?.error?.code === "json_validate_failed" ||
+      e?.message?.includes("json_validate_failed") ||
+      e?.message?.includes("Failed to generate JSON");
+
+    if (!isJsonModeError) throw e;
+
+    console.warn("[GROQ] json_object mode failed — retrying without response_format...");
+    const completion2 = await getGroqClient().chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages,
+      temperature: 0.1,
+      max_tokens: 2048,
+    });
+    const raw2 = completion2.choices[0]?.message?.content || "{}";
+    try {
+      const jsonMatch = raw2.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, raw2];
+      return JSON.parse(jsonMatch[1].trim());
+    } catch (parseErr) {
+      console.error("[GROQ] JSON Parse Error on fallback. Raw output:", raw2);
+      throw new Error("Failed to parse AI detection result. Please try again.");
+    }
   }
 }
 
