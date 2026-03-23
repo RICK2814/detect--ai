@@ -3,10 +3,10 @@ const initSqlJs = require("sql.js");
 const path = require("path");
 const fs   = require("fs");
 
-const DATA_DIR = path.join(__dirname, "data");
+const DATA_DIR = process.env.VERCEL ? "/tmp" : path.join(__dirname, "data");
 const DB_PATH  = path.join(DATA_DIR, "detector.db");
 
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(DATA_DIR) && !process.env.VERCEL) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 // sql.js is async to init — we expose a promise and a sync wrapper
 let _db = null;
@@ -56,8 +56,12 @@ async function getDb() {
 }
 
 function persist(db) {
-  const data = db.export();
-  fs.writeFileSync(DB_PATH, Buffer.from(data));
+  try {
+    const data = db.export();
+    fs.writeFileSync(DB_PATH, Buffer.from(data));
+  } catch (err) {
+    console.error("Failed to persist database:", err.message);
+  }
 }
 
 function rowsToObjects(res) {
