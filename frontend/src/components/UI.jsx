@@ -1,5 +1,6 @@
 // components/UI.jsx — Shared low-level components
 import React from "react";
+import RealisticFigure from "./RealisticFigure";
 
 // ── Gauge ─────────────────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ export function VerdictBadge({ verdict, size = "md" }) {
       background: c.bg, border: `1px solid ${c.color}`,
       borderRadius: 6, fontSize: fs, color: c.color, fontWeight: 700,
     }}>
-      {c.icon} {c.label}
+      <RealisticFigure symbol={c.icon} className="animated-emoji emoji-status" /> {c.label}
     </span>
   );
 }
@@ -138,7 +139,7 @@ export function Spinner({ size = 40 }) {
 
 // ── Button ────────────────────────────────────────────────────────────────────
 
-export function Button({ children, onClick, disabled, variant = "primary", style }) {
+export function Button({ children, onClick, disabled, variant = "primary", style, className = "" }) {
   const base = {
     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
     padding: "13px 24px", border: "none", borderRadius: 8,

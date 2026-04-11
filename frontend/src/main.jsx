@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { ClerkProvider } from "@clerk/clerk-react";
 import App from "./App";
+import RealisticFigure from "./components/RealisticFigure";
 import "./index.css";
 
 // Trim — stray spaces/newlines in .env break Clerk.
@@ -22,6 +23,7 @@ function MissingClerkKeyScreen() {
         margin: "0 auto",
       }}
     >
+      <div style={{ fontSize: 48, marginBottom: 20 }}><RealisticFigure symbol="⚠️" className="animated-emoji emoji-status" size={48} /></div>
       <h1 style={{ fontSize: 22, marginBottom: 16 }}>Clerk publishable key missing</h1>
       <p style={{ lineHeight: 1.6, marginBottom: 12 }}>
         Vite did not load <code style={{ color: "#7dd3fc" }}>VITE_CLERK_PUBLISHABLE_KEY</code>. Create or fix{" "}

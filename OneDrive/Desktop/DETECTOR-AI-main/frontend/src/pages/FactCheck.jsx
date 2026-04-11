@@ -1,6 +1,6 @@
 // pages/FactCheck.jsx — AI Fact-Checking Engine v2.0
 import React, { useEffect, useRef, useState } from "react";
-import { Card, CardHeader, Button } from "../components/UI";
+import { Card, CardHeader, Button, Spinner } from "../components/UI";
 import RealisticFigure from "../components/RealisticFigure";
 import api from "../utils/api";
 
@@ -160,7 +160,7 @@ export default function FactCheck() {
 
           {/* Mode tabs */}
           <div style={S.tabs}>
-            {[["text",<RealisticFigure symbol="✏️" className="animated-emoji emoji-icon" />,"Text"],["url",<RealisticFigure symbol="🌐" className="animated-emoji emoji-icon" />,"URL"]].map(([id,ic,lb]) => (
+            {[ ["text", <RealisticFigure symbol="✏️" className="animated-emoji emoji-icon" />, "Text"], ["url", <RealisticFigure symbol="🌐" className="animated-emoji emoji-icon" />, "URL"] ].map(([id,ic,lb]) => (
               <button key={id} onClick={() => setMode(id)} style={S.tab(mode === id)}>
                 {ic} {lb}
               </button>
@@ -336,7 +336,7 @@ export function FactCheckReport({ result }) {
           <div style={{ padding: 20, display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 250 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <RealisticFigure symbol={result.media_analysis.verdict === 'AI' ? '🤖' : '👤'} className="animated-emoji emoji-status" style={{ fontSize: 24 }} />
+                <RealisticFigure symbol={result.media_analysis.verdict === 'AI' ? '🤖' : '👤'} className="animated-emoji emoji-status" size={24} />
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 800, color: result.media_analysis.verdict === 'AI' ? '#ef4444' : '#22c55e' }}>
                     {result.media_analysis.verdict === 'AI' ? 'AI Generated Image Detected' : 'Likely Authentic Image'}
