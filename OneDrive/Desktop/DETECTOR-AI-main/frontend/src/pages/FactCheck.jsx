@@ -1,9 +1,15 @@
 // pages/FactCheck.jsx — AI Fact-Checking Engine v2.0
-import React, { useState, useRef } from "react";
-import { Card, CardHeader, Button, Spinner } from "../components/UI";
+import React, { useEffect, useRef, useState } from "react";
+import { Card, CardHeader, Button } from "../components/UI";
+import RealisticFigure from "../components/RealisticFigure";
 import api from "../utils/api";
 
 const FACTCHECK_TIMEOUT_MS = 300000;
+const SCAN_STAGES = ["Claim Extraction", "Cross-Source Retrieval", "Evidence Correlation", "Verdict Synthesis"];
+const SCAN_STAGE_STATUS = {
+  text: ["Extracting claims...", "Retrieving web sources...", "Correlating evidence...", "Synthesizing verdict..."],
+  url: ["Fetching and parsing article...", "Retrieving web sources...", "Correlating evidence...", "Synthesizing verdict..."],
+};
 
 const VERDICT_CFG = {
   "True":            { color: "#22c55e", bg: "rgba(34,197,94,0.12)",  icon: "✅", glow: "0 0 12px rgba(34,197,94,0.3)" },
@@ -26,25 +32,98 @@ export default function FactCheck() {
   const [url, setUrl]         = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus]   = useState("");
+  const [scanStageIdx, setScanStageIdx] = useState(0);
+  const [scanProgress, setScanProgress] = useState(8);
+  const [scanCompleteFx, setScanCompleteFx] = useState(false);
+  const [analyzePulse, setAnalyzePulse] = useState(0);
   const [result, setResult]   = useState(null);
   const [error, setError]     = useState(null);
 
+  const progressTimerRef = useRef(null);
+  const stageRef = useRef(0);
+  const flowStartRef = useRef(0);
+  const holdTickRef = useRef(0);
+  const runModeRef = useRef("text");
+
+  const clearScanTimers = () => {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+  };
+
+  const startScanTimeline = runMode => {
+    clearScanTimers();
+    runModeRef.current = runMode;
+    flowStartRef.current = Date.now();
+    holdTickRef.current = 0;
+    stageRef.current = 0;
+    setScanStageIdx(0);
+    setScanProgress(10);
+    setScanCompleteFx(false);
+    setStatus(SCAN_STAGE_STATUS[runMode][0]);
+
+    // Adaptive progress: keeps moving during long runs, slows near completion,
+    // and only reaches 100% when the API response actually returns.
+    progressTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - flowStartRef.current;
+      const dynamicTarget = 97;
+
+      setScanProgress(prev => {
+        const approach = Math.max(0.2, (dynamicTarget - prev) * 0.035);
+        const timeBoost = Math.min(1.2, elapsed / 12000);
+        const next = Math.min(dynamicTarget, prev + approach + timeBoost * 0.55);
+
+        const nextStage = next < 28 ? 0 : next < 56 ? 1 : next < 82 ? 2 : 3;
+        if (nextStage !== stageRef.current) {
+          stageRef.current = nextStage;
+          setScanStageIdx(nextStage);
+          setStatus(SCAN_STAGE_STATUS[runModeRef.current][nextStage]);
+          holdTickRef.current = 0;
+        } else {
+          holdTickRef.current += 1;
+          if (stageRef.current === 3 && holdTickRef.current % 8 === 0) {
+            const dots = ".".repeat((holdTickRef.current / 8) % 4);
+            setStatus(`Synthesizing verdict${dots}`);
+          }
+        }
+
+        return next;
+      });
+    }, 180);
+  };
+
+  const completeScanTimeline = () => {
+    clearScanTimers();
+    stageRef.current = SCAN_STAGES.length - 1;
+    setScanStageIdx(SCAN_STAGES.length - 1);
+    setScanProgress(100);
+    setStatus("Verification complete.");
+    setScanCompleteFx(true);
+  };
+
+  useEffect(() => () => clearScanTimers(), []);
+
   const analyze = async () => {
+    const runMode = mode;
+    setAnalyzePulse(v => v + 1);
     setLoading(true);
     setError(null);
     setResult(null);
+    startScanTimeline(runMode);
 
     try {
       let res;
-      if (mode === "url") {
+      if (runMode === "url") {
         if (!url.trim().startsWith("http")) throw new Error("Enter a valid URL starting with http");
-        setStatus("Fetching article from URL…");
         res = await api.post("/factcheck/url", { url: url.trim() }, { timeout: FACTCHECK_TIMEOUT_MS });
       } else {
         if (!text.trim() || text.trim().length < 10) throw new Error("Enter at least one sentence");
-        setStatus("Extracting claims…");
         res = await api.post("/factcheck/text", { text: text.trim() }, { timeout: FACTCHECK_TIMEOUT_MS });
       }
+
+      completeScanTimeline();
+      await new Promise(resolve => setTimeout(resolve, 360));
       setResult(res.data);
     } catch (err) {
       if (err.code === "ECONNABORTED" || String(err.message || "").toLowerCase().includes("timeout")) {
@@ -53,6 +132,7 @@ export default function FactCheck() {
         setError(err.response?.data?.error || err.message || "Analysis failed");
       }
     } finally {
+      clearScanTimers();
       setLoading(false);
       setStatus("");
     }
@@ -80,7 +160,7 @@ export default function FactCheck() {
 
           {/* Mode tabs */}
           <div style={S.tabs}>
-            {[["text","✏️","Text"],["url","🌐","URL"]].map(([id,ic,lb]) => (
+            {[["text",<RealisticFigure symbol="✏️" className="animated-emoji emoji-icon" />,"Text"],["url",<RealisticFigure symbol="🌐" className="animated-emoji emoji-icon" />,"URL"]].map(([id,ic,lb]) => (
               <button key={id} onClick={() => setMode(id)} style={S.tab(mode === id)}>
                 {ic} {lb}
               </button>
@@ -116,7 +196,7 @@ export default function FactCheck() {
                   onKeyDown={e => e.key === "Enter" && analyze()}
                 />
                 <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted)" }}>
-                  💡 Paste a news article, blog post, or Wikipedia URL. The full text will be extracted and fact-checked.
+                  <RealisticFigure symbol="💡" className="animated-emoji emoji-icon" /> Paste a news article, blog post, or Wikipedia URL. The full text will be extracted and fact-checked.
                 </div>
               </>
             )}
@@ -124,9 +204,15 @@ export default function FactCheck() {
             <Button
               onClick={analyze}
               disabled={loading || (mode === "text" ? wc < 3 : !url.trim().startsWith("http"))}
-              style={{ width: "100%", marginTop: 16, height: 52, fontSize: 14 }}
+              className="factcheck-analyze-btn"
+              style={S.premiumAnalyzeBtn(loading || (mode === "text" ? wc < 3 : !url.trim().startsWith("http")))}
             >
-              🛡️ Verify Every Claim
+              <span className="factcheck-btn-glow" />
+              <span key={analyzePulse} className="factcheck-btn-wave" />
+              <span style={S.btnInner}>
+                <RealisticFigure symbol="🛡️" className="animated-emoji emoji-status" />
+                <span style={{ fontWeight: 800 }}>Analyze + Verify</span>
+              </span>
             </Button>
           </div>
         </Card>
@@ -135,13 +221,38 @@ export default function FactCheck() {
       {/* Loading */}
       {loading && (
         <Card>
-          <div style={S.loadBox}>
-            <Spinner size={72} />
-            <div style={S.loadLabel}>Analyzing…</div>
+          <div style={S.loadBox} className={`factcheck-loader-shell ${scanCompleteFx ? "is-complete" : ""}`}>
+            <div style={S.scanOrbWrap}>
+              <div className="factcheck-scan-ring factcheck-scan-ring--outer" />
+              <div className="factcheck-scan-ring factcheck-scan-ring--mid" />
+              <div className="factcheck-scan-ring factcheck-scan-ring--inner" />
+              <div className="factcheck-scan-core" />
+              <div className="factcheck-scan-sweep" />
+            </div>
+
+            <div style={S.loadLabel}>Ultra Verification Scan In Progress</div>
             {status && <div style={S.statusBubble}>{status}</div>}
-            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8, textAlign: "center", lineHeight: 1.6 }}>
-              Extracting claims → Searching web → Cross-referencing evidence<br/>
-              Typical runs finish in about 10-20 seconds; longer texts may take a bit more
+
+            <div style={S.scanPipeline}>
+              {SCAN_STAGES.map((stage, idx) => (
+                <div
+                  key={stage}
+                  style={S.scanStage}
+                  className={`factcheck-stage-chip factcheck-stage-chip--${idx < scanStageIdx ? "done" : idx === scanStageIdx ? "active" : "idle"}`}
+                  data-delay={idx}
+                >
+                  <span className={`factcheck-stage-dot ${idx < scanStageIdx ? "is-done" : idx === scanStageIdx ? "is-active" : ""}`} />
+                  {stage}
+                </div>
+              ))}
+            </div>
+
+            <div style={S.scanBarTrack}>
+              <div className={`factcheck-scan-progress ${scanCompleteFx ? "is-complete" : ""}`} style={{ width: `${scanProgress}%` }} />
+            </div>
+
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8, textAlign: "center", lineHeight: 1.6, maxWidth: 520 }}>
+              Neural parsing, source triangulation, contradiction detection, and confidence calibration are running in parallel.
             </div>
           </div>
         </Card>
@@ -150,9 +261,9 @@ export default function FactCheck() {
       {/* Error */}
       {error && (
         <div style={S.errBox}>
-          <span>⚠️</span>
+          <RealisticFigure symbol="⚠️" className="animated-emoji emoji-status" />
           <div style={{ flex: 1 }}>{error}</div>
-          <button onClick={() => { setError(null); }} style={S.errClose}>✕</button>
+          <button onClick={() => { setError(null); }} style={S.errClose}><RealisticFigure symbol="✕" className="animated-emoji emoji-action" /></button>
         </div>
       )}
 
@@ -193,12 +304,12 @@ export function FactCheckReport({ result }) {
 
           {/* Stats row */}
           <div style={S.statsRow}>
-            <StatPill icon="✅" label="True"     count={stats.true}           color="#22c55e" />
-            <StatPill icon="⚠️" label="Partial"  count={stats.partially_true} color="#f59e0b" />
-            <StatPill icon="❌" label="False"    count={stats.false}          color="#ef4444" />
-            <StatPill icon="❓" label="Unknown"  count={stats.unverifiable}   color="#6b7280" />
+            <StatPill icon={<RealisticFigure symbol="✅" className="animated-emoji emoji-status" />} label="True"     count={stats.true}           color="#22c55e" />
+            <StatPill icon={<RealisticFigure symbol="⚠️" className="animated-emoji emoji-status" />} label="Partial"  count={stats.partially_true} color="#f59e0b" />
+            <StatPill icon={<RealisticFigure symbol="❌" className="animated-emoji emoji-status" />} label="False"    count={stats.false}          color="#ef4444" />
+            <StatPill icon={<RealisticFigure symbol="❓" className="animated-emoji emoji-status" />} label="Unknown"  count={stats.unverifiable}   color="#6b7280" />
             {stats.opinions > 0 && (
-              <StatPill icon="💬" label="Opinion" count={stats.opinions}      color="#a78bfa" />
+              <StatPill icon={<RealisticFigure symbol="💬" className="animated-emoji emoji-status" />} label="Opinion" count={stats.opinions}      color="#a78bfa" />
             )}
           </div>
 
@@ -211,7 +322,7 @@ export function FactCheckReport({ result }) {
       {/* Source URL if applicable */}
       {result.source_url && (
         <div style={S.sourceBar}>
-          🌐 Source: <a href={result.source_url} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", marginLeft: 6 }}>
+          <RealisticFigure symbol="🌐" className="animated-emoji emoji-icon" /> Source: <a href={result.source_url} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", marginLeft: 6 }}>
             {result.source_url.slice(0, 60)}{result.source_url.length > 60 ? "…" : ""}
           </a>
           <span style={{ marginLeft: 12, color: "var(--muted)" }}>({result.extracted_word_count} words extracted)</span>
@@ -221,11 +332,11 @@ export function FactCheckReport({ result }) {
       {/* Bonus: Media Analysis */}
       {result.media_analysis && (
         <Card style={{ marginBottom: 24, borderLeft: `4px solid ${result.media_analysis.verdict === 'AI' ? '#ef4444' : '#22c55e'}` }}>
-          <CardHeader dot={false}>📷 Bonus: Deepfake Media Analysis</CardHeader>
+          <CardHeader dot={false}><RealisticFigure symbol="📷" className="animated-emoji emoji-icon" /> Bonus: Deepfake Media Analysis</CardHeader>
           <div style={{ padding: 20, display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 250 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <span style={{ fontSize: 24 }}>{result.media_analysis.verdict === 'AI' ? '🤖' : '👤'}</span>
+                <RealisticFigure symbol={result.media_analysis.verdict === 'AI' ? '🤖' : '👤'} className="animated-emoji emoji-status" style={{ fontSize: 24 }} />
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 800, color: result.media_analysis.verdict === 'AI' ? '#ef4444' : '#22c55e' }}>
                     {result.media_analysis.verdict === 'AI' ? 'AI Generated Image Detected' : 'Likely Authentic Image'}
@@ -269,7 +380,7 @@ export function FactCheckReport({ result }) {
             {/* Header row */}
             <div style={S.claimHeader}>
               <span style={{ ...S.verdictBadge, background: vcfg.bg, color: vcfg.color, borderColor: vcfg.color + "60" }}>
-                {vcfg.icon} {item.verdict}
+                <RealisticFigure symbol={vcfg.icon} className="animated-emoji emoji-status" /> {item.verdict}
               </span>
               <span style={S.claimIndex}>#{item.id || idx + 1}</span>
               <div style={{ ...S.confBadge, color: vcfg.color }}>
@@ -293,7 +404,7 @@ export function FactCheckReport({ result }) {
             {/* Correction for false claims */}
             {item.correction && (
               <div style={S.correction}>
-                <strong>✏️ Correction:</strong> {item.correction}
+                <strong><RealisticFigure symbol="✏️" className="animated-emoji emoji-icon" /> Correction:</strong> {item.correction}
               </div>
             )}
 
@@ -325,7 +436,7 @@ export function FactCheckReport({ result }) {
                         {ev.url && (
                           <a href={ev.url} target="_blank" rel="noreferrer" style={S.evLink}
                              onClick={e => e.stopPropagation()}>
-                            🔗 {ev.url.slice(0, 70)}{ev.url.length > 70 ? "…" : ""}
+                            <RealisticFigure symbol="🔗" className="animated-emoji emoji-icon" /> {ev.url.slice(0, 70)}{ev.url.length > 70 ? "…" : ""}
                           </a>
                         )}
                       </div>
@@ -351,7 +462,7 @@ export function FactCheckReport({ result }) {
                   <div style={S.detailBlock}>
                     <div style={S.detailLabel}>Search Queries Used</div>
                     {item.search_queries.map((q, qi) => (
-                      <div key={qi} style={S.queryTag}>🔍 {q}</div>
+                      <div key={qi} style={S.queryTag}><RealisticFigure symbol="🔍" className="animated-emoji emoji-icon" /> {q}</div>
                     ))}
                   </div>
                 )}
@@ -423,12 +534,79 @@ const S = {
     color: ok ? "var(--accent3)" : "var(--muted)",
   }),
 
-  loadBox: { display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 20px", gap: 16 },
-  loadLabel: { fontSize: 13, letterSpacing: 2, color: "var(--muted)", textTransform: "uppercase" },
+  premiumAnalyzeBtn: disabled => ({
+    width: "100%",
+    marginTop: 16,
+    height: 56,
+    fontSize: 14,
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 12,
+    border: "1px solid rgba(0,229,255,0.36)",
+    background: disabled
+      ? "linear-gradient(135deg, rgba(30,42,58,0.65), rgba(22,34,49,0.65))"
+      : "linear-gradient(135deg, rgba(0,229,255,0.18), rgba(0,153,255,0.1) 50%, rgba(255,60,110,0.1))",
+    boxShadow: disabled
+      ? "none"
+      : "0 0 24px rgba(0,229,255,0.2), inset 0 1px 0 rgba(255,255,255,0.08)",
+    transition: "all 280ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+    color: disabled ? "var(--muted)" : "#dff9ff",
+  }),
+  btnInner: {
+    position: "relative",
+    zIndex: 2,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+
+  loadBox: { display: "flex", flexDirection: "column", alignItems: "center", padding: "52px 24px", gap: 16 },
+  loadLabel: { fontSize: 12, letterSpacing: 2, color: "#c7f8ff", textTransform: "uppercase", fontWeight: 700 },
   statusBubble: {
     fontSize: 12, color: "var(--accent)", letterSpacing: 0.5,
     padding: "10px 18px", background: "rgba(0,229,255,0.06)",
     border: "1px solid rgba(0,229,255,0.2)", borderRadius: 8,
+  },
+  scanOrbWrap: {
+    position: "relative",
+    width: 122,
+    height: 122,
+    borderRadius: "50%",
+    display: "grid",
+    placeItems: "center",
+  },
+  scanPipeline: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(170px, 1fr))",
+    width: "100%",
+    gap: 10,
+    maxWidth: 560,
+    marginTop: 6,
+  },
+  scanStage: {
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: "#b6d6e6",
+    border: "1px solid rgba(0,229,255,0.18)",
+    background: "rgba(9,18,29,0.62)",
+    borderRadius: 999,
+    padding: "8px 12px",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  scanBarTrack: {
+    width: "100%",
+    maxWidth: 560,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(10,25,38,0.7)",
+    border: "1px solid rgba(0,229,255,0.2)",
+    overflow: "hidden",
+    marginTop: 4,
   },
 
   errBox: {
